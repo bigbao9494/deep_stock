@@ -1,5 +1,6 @@
 #-*- coding: UTF-8 -*-
 #遗留问题：这里没有考虑未来有停牌，交易日很少怎么办。由于这种情况比较少，暂时不理会
+#买入：考察日date的下一个交易日的收盘价买入，有一天的时间买
 from common import *
 from datetime import timedelta
 from datetime import date
