@@ -1,47 +1,81 @@
+#-*- coding: UTF-8 -*-
+#é—ç•™é—®é¢˜ï¼šè¿™é‡Œæ²¡æœ‰è€ƒè™‘æœªæ¥æœ‰åœç‰Œï¼Œäº¤æ˜“æ—¥å¾ˆå°‘æ€ä¹ˆåŠã€‚ç”±äºè¿™ç§æƒ…å†µæ¯”è¾ƒå°‘ï¼Œæš‚æ—¶ä¸ç†ä¼š
 from common import *
 from datetime import timedelta
 from datetime import date
 import tushare as ts
+import logging
 class input_data_label():
     def __init__(self,code,date,hold_date,profit_rate):
         '''
         :param code: string
-        :param date: dateÀàĞÍ£¬±»²âµÄÈÕÆÚ£¬¼´ÂòÈëÈÕÆÚ
-        :param hold_date: int£¬³ÖÓĞµÄÌìÊı
-        :param profit_rate: Ä¿±êÊÕÒæÂÊ£¬ÔÚbuy_dateÓësold_dateÆÚ¼ä£¬´ïµ½¹ı¸ÃÊÕÒæÂÊÔò³É¹¦£¬label=1.
+        :param date: dateç±»å‹ï¼Œè¢«æµ‹çš„æ—¥æœŸï¼Œå³ä¹°å…¥æ—¥æœŸçš„å‰ä¸€å¤©
+        :param hold_date: intï¼ŒæŒæœ‰çš„å¤©æ•°
+        :param profit_rate: ç›®æ ‡æ”¶ç›Šç‡ï¼Œåœ¨buy_dateä¸sold_dateæœŸé—´ï¼Œè¾¾åˆ°è¿‡è¯¥æ”¶ç›Šç‡åˆ™æˆåŠŸï¼Œlabel=1.
         :return:
         '''
-        super(input_data_label,self).__init__(code,date)
         self.code = code
-        self.buy_date = date
+        self.buy_date = date+timedelta(1)#å¦‚æœbuy_dateä¸æ˜¯äº¤æ˜“æ—¥ï¼Œç»§ç»­å¾€åæ‰¾
         self.buy_date_str = date_to_str(self.buy_date)
-
-        self.label=None #  1£ºÓ¯ÀûÄ¿±ê´ïµ½£»0£ºÃ»´ïµ½Ä¿±ê£¬µ½sold_dateÊ±Ó¯ÀûÔÚ£¨0,profit_rate£©·¶Î§; -1:¿÷Ç®
-        self.sold_date = date+timedelta(hold_date)
+        self.hold_date = hold_date
+        self.label=None #  1ï¼šç›ˆåˆ©ç›®æ ‡è¾¾åˆ°ï¼›0ï¼šæ²¡è¾¾åˆ°ç›®æ ‡ï¼Œåˆ°sold_dateæ—¶ç›ˆåˆ©åœ¨ï¼ˆ0,profit_rateï¼‰èŒƒå›´; -1:äºé’±
+        self.sold_date = self.buy_date+timedelta(hold_date)
         self.sold_date_str = date_to_str(self.sold_date)
         self.profit_rate=profit_rate
+        self.data_valid=True
     def get_label(self):
-        #¼ì²éÄ¿±êÂô³öÈÕÊÇ·ñ´óÓÚÑµÁ·µÄÈÕ×Ó
+        #æ£€æŸ¥ç›®æ ‡ä¹°å…¥æ—¥æ˜¯å¦æ˜¯äº¤æ˜“æ—¥
+        data_day_0 = ts.get_k_data(self.code, ktype='d', autype='hfq',index=False,start=self.buy_date_str, end=self.sold_date_str)
+        if(data_day_0.iloc[0,0]!=self.buy_date_str):
+            #è¯´æ˜åŸå®šbuy_dateä¸æ˜¯äº¤æ˜“æ—¥ï¼Œé‡æ–°é€‰å®šbuy_date
+            self.buy_date = date(year=int(data_day_0.iloc[0,0][0:4]),month=int(data_day_0.iloc[0,0][5:7]),day=int(data_day_0.iloc[0,0][8:10]))
+            self.buy_date_str = data_day_0.iloc[0,0]
+            self.sold_date = self.buy_date+timedelta(self.hold_date)
+            self.sold_date_str = date_to_str(self.sold_date)
+        #æ£€æŸ¥ç›®æ ‡å–å‡ºæ—¥æ˜¯å¦å¤§äºè®­ç»ƒçš„æ—¥å­
         if(self.sold_date>date.today()):
             self.input_data=[]
-            print("Êı¾İÎŞĞ§£ºÄ¿±êÂô³öÈÕ»¹Ã»µ½£¬²»ÄÜÓÃÀ´ÑµÁ·£º"+self.code+": "+self.buy_date_str+": "+self.sold_date_str)
+            print("æ•°æ®æ— æ•ˆï¼šç›®æ ‡å–å‡ºæ—¥è¿˜æ²¡åˆ°ï¼Œä¸èƒ½ç”¨æ¥è®­ç»ƒï¼š"+self.code+": "+self.buy_date_str+": "+self.sold_date_str)
             self.data_valid=False
-            return self.label #·µ»ØNone
-        #»ñÈ¡Î´À´µÄ¼Û¸ñ
+            return self.label #è¿”å›None
+        #è·å–æœªæ¥çš„ä»·æ ¼
         data_day_0 = ts.get_k_data(self.code, ktype='d', autype='hfq',index=False,start=self.buy_date_str, end=self.sold_date_str)
+        #è¿™é‡Œæ²¡æœ‰è€ƒè™‘æœªæ¥æœ‰åœç‰Œï¼Œäº¤æ˜“æ—¥å¾ˆå°‘æ€ä¹ˆåŠ
         for i in range(data_day_0.index.size):
             if((data_day_0.iloc[i,2]-data_day_0.iloc[0,2])/data_day_0.iloc[0,2]>self.profit_rate):
                 self.label=1
                 return self.label
-        if(self.label is None):#Ã»´ï³ÉÄ¿±ê
-            if((data_day_0.iloc[data_day_0.index.size-1,2]-data_day_0.iloc[0,2])/data_day_0.iloc[0,2]>0):#Ó¯ÀûÁË
+        if(self.label is None):#æ²¡è¾¾æˆç›®æ ‡
+            if((data_day_0.iloc[data_day_0.index.size-1,2]-data_day_0.iloc[0,2])/data_day_0.iloc[0,2]>0):#ç›ˆåˆ©äº†
                 self.label=0
                 return self.label
-            else:#ÅâÇ®
+            else:#èµ”é’±
                 self.label=-1
                 return self.label
 def main():
+    logger = logging.getLogger("mylog")
+    formatter = logging.Formatter('%(name)-12s %(asctime)s %(levelname)-8s %(message)s', '%a, %d %b %Y %H:%M:%S',)
+    file_handler = logging.FileHandler("./log/test_log.txt",encoding='utf-8')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    logger.setLevel(logging.DEBUG)
 
+    zxb_tickers = ts.get_sme_classified()
+    one_dateee = date(2015,month=7,day=30)
+    for i in range(zxb_tickers.index.size):
+        one_ticker = zxb_tickers.iloc[i,0]
+        for j in range(3650):
+            one_data = input_data_label(one_ticker,one_dateee,30,0.1)
+            x = one_data.get_label()
+
+            #æ£€æŸ¥æ•°æ®åˆç†æ€§
+            if(not one_data.data_valid):
+                logger.debug('invalid: '+str(one_ticker)+'_'+date_to_str(one_dateee)+"_"+str(x))
+            #å‘ç°ä¹°å…¥ç‚¹
+            if(x==1):
+                logger.debug('valid: ä¹°å…¥'+str(one_ticker)+'_'+date_to_str(one_dateee)+"_"+str(x))
+
+            one_dateee = one_dateee-timedelta(1)
 if __name__ == '__main__':
-    #main()
-    test()
+    main()
+    #test()

@@ -1,18 +1,11 @@
 #-*- coding: UTF-8 -*-
-#class input_data():获取指定日期、编号的股票的输入向量。具有以下特点：
-#1. 如果指定日期不是交易日，input_data=[]
-#2.
-#class input_data_label(input_data)：额外可以获取label。考虑了以下情况：
-#1. 目标卖出日大于今天，还没有数据，所以不能用来训练，需要将input_data=[]。
-#2.
-#方法：input_data.get_input_data()
-#input_data_label.get_input_data(), input_data_label.get_label_data()
+#class price_and_volume():获取指定日期、编号的股票的输入向量。具有以下特点：
+#1. 如果指定日期不是交易日，return  None
+#2. 返回的价格和均线都是指定日期的close价格
+
 
 #调试记录：
-#20170628发现get_hist_data得到的数据是不复权的，这样的ma5，ma10等数据会不准。需要自己计算ma5,ma10.正在写compute_ma
-#正在写_load_report
-PROFIT_RATE = 0.1 #目标收益率
-SOLD_DATE = 30 #从今天算起，卖出的天数。如果今天买，SOLD_DATE之内有达到过PROFIT_RATE，lable为1;否则lable为0
+
 from datetime import date
 from datetime import timedelta
 import tushare as ts
@@ -24,8 +17,8 @@ from common import *
 class price_and_volume():
     def __init__(self, code,date):
         self.code = code
-        self.buy_date = date
-        self.buy_date_str = date_to_str(self.buy_date)
+        self.test_date = date
+        self.buy_date_str = date_to_str(self.test_date)
 
         #最终输出的结果
         self.price=None #np类型
@@ -51,7 +44,7 @@ class price_and_volume():
         #取日线行情:
         #data_day_0 = ts.get_k_data(self.code, ktype='d', autype='hfq',index=False,start=self.buy_date_str, end=self.buy_date_str)
         data_day_1 = ts.get_hist_data(self.code, ktype='D', start=self.buy_date_str,end=self.buy_date_str) #获取日线
-        data_week_1 = ts.get_hist_data(self.code, ktype='W', start=date_to_str(self.buy_date-timedelta(6)), end=self.buy_date_str)
+        data_week_1 = ts.get_hist_data(self.code, ktype='W', start=date_to_str(self.test_date-timedelta(6)), end=self.buy_date_str)
 
         #检查buydate是否存在
         if(data_day_1.iloc[0,0] != self.buy_date_str):
@@ -88,8 +81,8 @@ class price_and_volume():
         return True # 正常
 
     def _download_data(self,code,index):
-        start_day_date = date_to_str(self.buy_date-timedelta(40))
-        start_week_date = date_to_str(self.buy_date-timedelta(25)*7)
+        start_day_date = date_to_str(self.test_date-timedelta(40))
+        start_week_date = date_to_str(self.test_date-timedelta(25)*7)
         #取日线行情:
         data_day = ts.get_k_data(code, ktype='d', autype='qfq',index=index,start=start_day_date, end=self.buy_date_str)
         #检查buydate是否存在
@@ -99,7 +92,7 @@ class price_and_volume():
             return None,None
         #检查够不够20个交易日
         if(data_day.index.size<20):
-            data_day = ts.get_k_data(code, ktype='d', autype='qfq',index=index,start=date_to_str(self.buy_date-timedelta(180)), end=self.buy_date_str)#考虑有停牌的情况，祖国不够20个，再往前追加3个月
+            data_day = ts.get_k_data(code, ktype='d', autype='qfq',index=index,start=date_to_str(self.test_date-timedelta(180)), end=self.buy_date_str)#考虑有停牌的情况，祖国不够20个，再往前追加3个月
         if(data_day.index.size<20):
             print("数据无效：股票上市日子不够，计算不出日MA20："+code+": "+self.buy_date_str)
             self.no_week_ma = True
@@ -109,7 +102,7 @@ class price_and_volume():
         data_week= ts.get_k_data(code, ktype='w', autype='qfq',index=index,start=start_week_date, end=self.buy_date_str)
         #检查够不够20个交易日
         if(data_week.index.size<20):
-            data_week= ts.get_k_data(code, ktype='w', autype='qfq',index=index,start=date_to_str(self.buy_date-timedelta(50)*7), end=self.buy_date_str)
+            data_week= ts.get_k_data(code, ktype='w', autype='qfq',index=index,start=date_to_str(self.test_date-timedelta(50)*7), end=self.buy_date_str)
         if(data_week.index.size<20):
             print("数据无效：股票上市日子不够，计算不出周MA20："+code+": "+self.buy_date_str)
             self.no_week_ma = True
