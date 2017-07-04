@@ -15,10 +15,11 @@ import logging
 from common import *
 #输入指定股票的指定日期，得到用来训练的vector（numpy类型）
 class price_and_volume():
-    def __init__(self, code,date):
+    def __init__(self, code,date,index=False):
         self.code = code
         self.test_date = date
         self.buy_date_str = date_to_str(self.test_date)
+        self.index = index
 
         #最终输出的结果
         self.price=None #np类型
@@ -66,7 +67,7 @@ class price_and_volume():
         volume = normalize(np.array(self.volume))
         '''
         #取日线行情:
-        tmp_price, tmp_volume = self._download_data(self.code,index=False)#不成功返回None,None
+        tmp_price, tmp_volume = self._download_data(self.code,index=self.index)#不成功返回None,None
         if(self.data_valid is False):
             return None
         self.price = np.array(tmp_price)
@@ -137,7 +138,7 @@ def main():
     one_data = price_and_volume(one_ticker,one_date)
     x = one_data.get_input_data()
 
-def test():
+def test_stock():
     logger = logging.getLogger("mylog")
     formatter = logging.Formatter('%(name)-12s %(asctime)s %(levelname)-8s %(message)s', '%a, %d %b %Y %H:%M:%S',)
     file_handler = logging.FileHandler("./log/test_log.txt",encoding='utf-8')
@@ -162,10 +163,32 @@ def test():
             else:#数据无效
                 logger.debug('invalid: '+str(one_ticker)+'_'+date_to_str(one_dateee)+"_"+str(x))
             one_dateee = one_dateee-timedelta(1)
+def test_index():
+    logger = logging.getLogger("mylog")
+    formatter = logging.Formatter('%(name)-12s %(asctime)s %(levelname)-8s %(message)s', '%a, %d %b %Y %H:%M:%S',)
+    file_handler = logging.FileHandler("./log/test_log.txt",encoding='utf-8')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    logger.setLevel(logging.DEBUG)
 
+    one_dateee = date(2015,month=7,day=30)
+    one_ticker = "399005" #中小板指数
+    for j in range(3650):
+        one_data = price_and_volume(one_ticker,one_dateee)
+        x = one_data.get_price_and_volume()
+        #检查数据合理性
+        if(one_data.data_valid):
+            logger.debug('valid: '+str(one_ticker)+'_'+date_to_str(one_dateee)+"_"+str(x)) #数据有效
+        elif(one_data.no_week_ma):
+            logger.debug('invalid: no week MA20 '+str(one_ticker)+'_'+date_to_str(one_dateee)+"_"+str(x))
+            break  #数据无效，而且再往前的日子的数据都不会有效了
+        else:#数据无效
+            logger.debug('invalid: '+str(one_ticker)+'_'+date_to_str(one_dateee)+"_"+str(x))
+        one_dateee = one_dateee+timedelta(1)
 if __name__ == '__main__':
     #main()
-    test()
+    #test_stock()
+    test_index()
 
 #tips:
 #判断未来的涨幅，应该使用后复权的未来股价与设定日的股价相减。

@@ -39,3 +39,18 @@ def compute_ma(input_data):
         if(i==19):
             ma20=tmp_sum/20.0
     return [ma5,ma10,ma20]
+
+def get_season_int(date):
+    '''
+    :param date: date类型
+    :return:(year,season), 其中year和season都是int类型
+    '''
+    str_date = date_to_str(date)
+    year = int(str_date[0:4])
+    month = int(str_date[5:7])
+    season = int((month - 1) / 3)  # 4,5,6看一季报,789看二季报，10\11\12看三季报，1\2\3
+
+    if season == 0:
+        season = 4
+        year = year-1#看上一年的4季报
+    return year,season
