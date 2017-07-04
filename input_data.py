@@ -85,6 +85,8 @@ def test():
                 else:
                     result.append((x,y))
                 one_dateee = one_dateee-timedelta(1)
+            one_dateee = date(2017,month=5,day=3)
+            i_day = 0
     except KeyboardInterrupt as ex:
         with open('input_data_test.pkl',"wb") as pkf:
             pickle.dump(result,pkf)
