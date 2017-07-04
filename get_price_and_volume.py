@@ -2,7 +2,8 @@
 #class price_and_volume():获取指定日期、编号的股票的输入向量。具有以下特点：
 #1. 如果指定日期不是交易日，return  None
 #2. 返回的价格和均线都是指定日期的close价格
-
+#已知问题：
+#1. 中小板指数从2007年09月04日再往前就没有了。可能是tushare的数据源没有那之前的数据
 
 #调试记录：
 
@@ -86,14 +87,19 @@ class price_and_volume():
         start_week_date = date_to_str(self.test_date-timedelta(25)*7)
         #取日线行情:
         data_day = ts.get_k_data(code, ktype='d', autype='qfq',index=index,start=start_day_date, end=self.buy_date_str)
-        #检查buydate是否存在
-        if(data_day.iloc[-1,0] != self.buy_date_str):
-            print("数据无效：目标买入日不是交易日："+code+": "+self.buy_date_str)
-            self.data_valid = False
-            return None,None
         #检查够不够20个交易日
         if(data_day.index.size<20):
             data_day = ts.get_k_data(code, ktype='d', autype='qfq',index=index,start=date_to_str(self.test_date-timedelta(180)), end=self.buy_date_str)#考虑有停牌的情况，祖国不够20个，再往前追加3个月
+        #检查是否仍然空。如果还空，要么停牌超过半年，要么服务器出错。
+        if(data_day.empty):
+            print("数据无效：停牌超过半年，或者服务器出错：" + code + ": " + self.buy_date_str)
+            self.data_valid = False
+            return None, None
+        # 检查buydate是否存在
+        if (data_day.iloc[-1, 0] != self.buy_date_str):
+            print("数据无效：目标买入日不是交易日：" + code + ": " + self.buy_date_str)
+            self.data_valid = False
+            return None, None
         if(data_day.index.size<20):
             print("数据无效：股票上市日子不够，计算不出日MA20："+code+": "+self.buy_date_str)
             self.no_week_ma = True

@@ -78,7 +78,7 @@ def test():
     try:
         for i in range(i_ticker,zxb_tickers.index.size):
             one_ticker = zxb_tickers.iloc[i,0]
-            for j in range(i_day,3650):
+            for j in range(i_day,3525):
                 x,y = input_data(one_ticker,'399005',one_dateee,hold_date=hold_date,profit_rate=profit_rate)
                 if(x is None):
                     print('invalid: '+str(one_ticker)+'_'+date_to_str(one_dateee))
@@ -94,5 +94,29 @@ def load_input_from_disk():
     with open('input_data_test.pkl',"rb") as pkf:
             result = pickle.load(pkf)
     return result
+
+def debug():
+    hold_date = 30
+    profit_rate = 0.1
+    zxb_tickers = ts.get_sme_classified()
+    one_dateee = date(2007, month=9, day=4)
+
+    i_ticker = 0
+    i_day = 0
+    result = []
+    one_dateee = one_dateee - timedelta(i_day)
+    try:
+        for i in range(i_ticker, zxb_tickers.index.size):
+            one_ticker = zxb_tickers.iloc[i, 0]
+            for j in range(i_day, 3590):
+                x, y = input_data(one_ticker, '399005', one_dateee, hold_date=hold_date, profit_rate=profit_rate)
+                if (x is None):
+                    print('invalid: ' + str(one_ticker) + '_' + date_to_str(one_dateee))
+                else:
+                    result.append((x, y))
+                one_dateee = one_dateee - timedelta(1)
+    except KeyboardInterrupt as ex:
+        pass
 if __name__ == '__main__':
     test()
+    #debug()
