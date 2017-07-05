@@ -27,6 +27,9 @@ class input_data_label():
     def get_label(self):
         #检查目标买入日是否是交易日
         data_day_0 = ts.get_k_data(self.code, ktype='d', autype='hfq',index=False,start=self.buy_date_str, end=self.sold_date_str)
+        if(data_day_0.empty):#未来30个自然日没有数据，可能股票停牌
+            self.data_valid = False
+            return self.label
         if(data_day_0.iloc[0,0]!=self.buy_date_str):
             #说明原定buy_date不是交易日，重新选定buy_date
             self.buy_date = date(year=int(data_day_0.iloc[0,0][0:4]),month=int(data_day_0.iloc[0,0][5:7]),day=int(data_day_0.iloc[0,0][8:10]))

@@ -32,6 +32,11 @@ class price_and_volume():
         self.data_valid = True
         self.no_week_ma = False #没有日线的20日均线，说明再往前的日子数据都不用找了.
     def get_normalized_price_and_volume(self):
+        '''
+        获得归一化的price和volume。
+        如果已经下载过，这里不再下载，沿用之前的数据；如果没下载过，先下载，再归一化。
+        :return: numpy array：[当日价格，5日均价，10日均价，20日均价，5周均价，10周均价，20周均价，当日成交，5日均量，10日均量，20日均量，5周均量，10周均量，20周均量]
+        '''
         if(self.data_valid==True and (self.price is None)):#没下载过
             self.get_price_and_volume()
         #将以上数据归一化
@@ -43,29 +48,7 @@ class price_and_volume():
             return None
     def get_price_and_volume(self):
         '''
-        #取日线行情:
-        #data_day_0 = ts.get_k_data(self.code, ktype='d', autype='hfq',index=False,start=self.buy_date_str, end=self.buy_date_str)
-        data_day_1 = ts.get_hist_data(self.code, ktype='D', start=self.buy_date_str,end=self.buy_date_str) #获取日线
-        data_week_1 = ts.get_hist_data(self.code, ktype='W', start=date_to_str(self.test_date-timedelta(6)), end=self.buy_date_str)
-
-        #检查buydate是否存在
-        if(data_day_1.iloc[0,0] != self.buy_date_str):
-            print("数据无效：目标买入日不是交易日："+self.code+": "+self.buy_date_str)
-            return []
-        #价格
-        self.price = [data_day_1.iloc[0,2],data_day_1.iloc[0,7],data_day_1.iloc[0,8],data_day_1.iloc[0,9],
-                 data_week_1.iloc[0,7],data_week_1.iloc[0,8],data_week_1.iloc[0,9]]
-                 #内容：price, ma5，ma10,ma20,w_ma5,w_ma10,w_ma20
-        #检查有没有异常值
-        if(self._check_data(self.price) is False):
-            return []
-        price = normalize(np.array(self.price))
-
-        #成交量
-        self.volume = [data_day_1.iloc[0,5],data_day_1.iloc[0,10],data_day_1.iloc[0,11],data_day_1.iloc[0,12],
-                    data_week_1.iloc[0, 10], data_week_1.iloc[0, 11], data_week_1.iloc[0, 12] ]
-                 # 内容：volume, v_ma5，v_ma10,v_ma20,v_w_ma5,v_w_ma10,v_w_ma20
-        volume = normalize(np.array(self.volume))
+        return: numpy array：[当日价格，5日均价，10日均价，20日均价，5周均价，10周均价，20周均价，当日成交，5日均量，10日均量，20日均量，5周均量，10周均量，20周均量]
         '''
         #取日线行情:
         tmp_price, tmp_volume = self._download_data(self.code,index=self.index)#不成功返回None,None
@@ -137,7 +120,45 @@ class price_and_volume():
             return None,None
         return price,volume
 
+class price_and_volume_db(price_and_volume):
+    def __init__(self,conn,code,date,index=False):
+        super(price_and_volume,self).__init__(code,date,index=index)
+        self.conn = conn
+    def get_price(self,day_or_week):
+        '''
+        :param day_or_week: string, "day" or "week"
+        :return: numpy.array []
+        '''
+        query = "SELECT close from %s" % (self.code + "_"+day_or_week+"_" + str(self.year)) + \
+                " WHERE date = '%s'" % self.buy_date_str
+        try:
+            result = db_execute(query,self.conn)
+            if(result is None):
+                self.data_valid=False
+        except:
+            self.data_valid=False
+        if(self.data_valid):#数据有效
+            for field in fields:
+                if(result[field] is None):
+                    self.price = 0.0
+                else:
+                    self.result[field]=result[field]
+            #记录报告日期
+            if(self.season==4):#如果是4季报，发布年份是下一年
+                report_year=self.year+1
+            else:
+                report_year=self.year
+            self.report_date = date(report_year,int(result['report_date'][0:2]),int(result['report_date'][3:5]))
+        else:
+            self.result=None
 
+        return self.result # 成功了，result是真实数；失败了，self.result是None
+    def get_prices(self,num,day_or_week):
+        pass
+    def get_volume(self,day_or_week):
+        pass
+    def get_volumes(self,num,day_or_week):
+        pass
 def main():
     one_date = date(2017,month=5,day=2)
     one_ticker = '601600'

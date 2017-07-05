@@ -87,6 +87,8 @@ def test():
                 one_dateee = one_dateee-timedelta(1)
             one_dateee = date(2017,month=5,day=3)
             i_day = 0
+    except Exception as ex:
+        logger.debug("Need debug.")
     except KeyboardInterrupt as ex:
         with open('input_data_test.pkl',"wb") as pkf:
             pickle.dump(result,pkf)
@@ -101,9 +103,9 @@ def debug():
     hold_date = 30
     profit_rate = 0.1
     zxb_tickers = ts.get_sme_classified()
-    one_dateee = date(2007, month=9, day=4)
+    one_dateee = date(2015, month=6, day=5)
 
-    i_ticker = 0
+    i_ticker = 2
     i_day = 0
     result = []
     one_dateee = one_dateee - timedelta(i_day)
