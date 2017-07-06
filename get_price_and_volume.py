@@ -15,7 +15,7 @@ import numpy as np
 import logging
 from common import *
 #输入指定股票的指定日期，得到用来训练的vector（numpy类型）
-class price_and_volume():
+class price_and_volume_ts():
     def __init__(self, code,date,index=False):
         self.code = code
         self.test_date = date
@@ -23,7 +23,7 @@ class price_and_volume():
         self.index = index
 
         #最终输出的结果
-        self.price=None #np类型
+        self.price={} #np类型
         self.volume=None #np类型
         self.nm_price = None
         self.nm_volume=None
@@ -120,16 +120,30 @@ class price_and_volume():
             return None,None
         return price,volume
 
-class price_and_volume_db(price_and_volume):
+class price_and_volume_db():
     def __init__(self,conn,code,date,index=False):
-        super(price_and_volume,self).__init__(code,date,index=index)
+        self.code = code
+        self.test_date = date
+        self.buy_date_str = date_to_str(self.test_date)
+        self.index = index#是否是指数,True:指数
+
+        # 最终输出的结果
+        self.price = {}  # np类型
+        self.volume = None  # np类型
+        self.nm_price = None
+        self.nm_volume = None
+
+        # 指示数据有效性的
+        self.data_valid = True
+        self.no_week_ma = False  # 没有日线的20日均线，说明再往前的日子数据都不用找了.
         self.conn = conn
-    def get_price(self,day_or_week):
+    def get_price(self,day_or_week,fields=("open","close","high","low")):
         '''
         :param day_or_week: string, "day" or "week"
+        :fields: tuple, 列出想提取的数据，例如：("open","close","high","low")。目前仅限于这4项之中。
         :return: numpy.array []
         '''
-        query = "SELECT close from %s" % (self.code + "_"+day_or_week+"_" + str(self.year)) + \
+        query = "SELECT * from %s" % (self.code + "_"+day_or_week+"_" + str(self.year)) + \
                 " WHERE date = '%s'" % self.buy_date_str
         try:
             result = db_execute(query,self.conn)
@@ -140,29 +154,33 @@ class price_and_volume_db(price_and_volume):
         if(self.data_valid):#数据有效
             for field in fields:
                 if(result[field] is None):
-                    self.price = 0.0
+                    self.price[field] = 0.0
                 else:
-                    self.result[field]=result[field]
-            #记录报告日期
-            if(self.season==4):#如果是4季报，发布年份是下一年
-                report_year=self.year+1
-            else:
-                report_year=self.year
-            self.report_date = date(report_year,int(result['report_date'][0:2]),int(result['report_date'][3:5]))
-        else:
-            self.result=None
-
-        return self.result # 成功了，result是真实数；失败了，self.result是None
-    def get_prices(self,num,day_or_week):
-        pass
+                    self.price[field]=result[field]
+        return self.price # 成功了，result是真实数；失败了，return {}
+    def get_prices(self,num,day_or_week,fields):
+        '''
+        :param num: int, 取的总天数
+        :param day_or_week: str,"day" or "week"
+        :param fields: tuple, 列出想提取的数据，例如：("open","close","high","low")。目前仅限于这4项之中。
+        :return:
+        '''
+        #检查当天价格是否存在，如果不存在，结束返回
+        self.get_price(day_or_week,fields)
+        if(not self.data_valid):
+            return None
+        #按顺序往前
+        for i in range(num):
+            query = "SELECT * from %s" % (self.code + "_" + day_or_week + "_" + str(self.year)) + \
+                    " WHERE date = '%s'" % self.buy_date_str
     def get_volume(self,day_or_week):
         pass
     def get_volumes(self,num,day_or_week):
         pass
-def main():
+def test_price_an():
     one_date = date(2017,month=5,day=2)
     one_ticker = '601600'
-    one_data = price_and_volume(one_ticker,one_date)
+    one_data = price_and_volume_ts(one_ticker,one_date)
     x = one_data.get_input_data()
 
 def test_stock():
@@ -178,7 +196,7 @@ def test_stock():
     for i in range(zxb_tickers.index.size):
         one_ticker = zxb_tickers.iloc[i,0]
         for j in range(3650):
-            one_data = price_and_volume(one_ticker,one_dateee)
+            one_data = price_and_volume_ts(one_ticker,one_dateee)
             x = one_data.get_normalized_price_and_volume()
 
             #检查数据合理性
@@ -201,7 +219,7 @@ def test_index():
     one_dateee = date(2015,month=7,day=30)
     one_ticker = "399005" #中小板指数
     for j in range(3650):
-        one_data = price_and_volume(one_ticker,one_dateee)
+        one_data = price_and_volume_ts(one_ticker,one_dateee)
         x = one_data.get_price_and_volume()
         #检查数据合理性
         if(one_data.data_valid):

@@ -22,14 +22,14 @@ def input_data(code,index_code,date,hold_date,profit_rate ):
     :return: input_data:
     '''
     #get price
-    stock_obj = price_and_volume(code,date)
+    stock_obj = price_and_volume_ts(code,date)
     stock_data = stock_obj.get_normalized_price_and_volume()
     if(stock_obj.data_valid):
         logger.debug('price and volume valid: '+str(code)+'_'+date_to_str(date)+"_"+str(stock_data)) #数据有效
     else:
         return None,None
     #get index data
-    index_obj = price_and_volume(index_code,date,index=True)
+    index_obj = price_and_volume_ts(index_code,date,index=True)
     index_data = index_obj.get_normalized_price_and_volume()
     if(index_obj.data_valid):
         logger.debug('index valid: '+str(index_code)+'_'+date_to_str(date)+"_"+str(index_data)) #数据有效

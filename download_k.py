@@ -12,7 +12,7 @@ from common import *
 import pymysql
 import mpi4py.MPI as MPI
 import sys
-CHECK_DATABASE = True
+CHECK_DATABASE_PRINT = False
 pymysql_config = {
         'host': '127.0.0.1',
         'port': 3306,
@@ -56,9 +56,8 @@ def main():
     最早到下载到2005年
     :return:
     '''
-    with open('download_k.pkl', "wb") as pkf:
-        pickle.dump(26, pkf)
-    zxb_tickers = ts.get_sme_classified()
+    #zxb_tickers = ts.get_sme_classified()#下载中小板的
+    codes = ts.get_stock_basics()#下载全部股票
     engine = create_engine('mysql+pymysql://root:m7227510@127.0.0.1/tushare?charset=utf8')
     try:#载入进度
         with open('download_k.pkl',"rb") as pkf:
@@ -66,27 +65,32 @@ def main():
     except:
         i_code=0
     try:
-        for i in range(i_code,zxb_tickers.index.size):
-            one_ticker = zxb_tickers.iloc[i, 0]
+        for i in range(i_code,codes.index.size):
+            one_ticker = codes.index[i]
             year = 2017
+            print("process: %s:%s" %(codes.index.size,i))
             while year > 2004:
                 #日线
                 if(not check_already_downloaded(conn,one_ticker,year,"day")):
+                    if (CHECK_DATABASE_PRINT):
+                        print("Will download day code: %s year:%s" % (one_ticker, year))
                     k_data = ts.get_k_data(one_ticker,start=str(year)+"-01-01",end=str(year)+"-12-31",ktype="D",autype="qfq")
                     if(k_data.empty):
                         break
                     k_data.to_sql(one_ticker+'_day_' + str(year) , engine, if_exists='replace')
-                    if (CHECK_DATABASE):
+                    if (CHECK_DATABASE_PRINT):
                         print("downloaded day code: %s year:%s" % (one_ticker, year))
                 #周线
-                if (not check_already_downloaded(conn, one_ticker, year, "week  ")):
+                if (not check_already_downloaded(conn, one_ticker, year, "week")):
+                    if (CHECK_DATABASE_PRINT):
+                        print("Will download week code: %s year:%s" % (one_ticker, year))
                     k_data = ts.get_k_data(one_ticker, start=str(year) + "-01-01", end=str(year) + "-12-31", ktype="W",
                                            autype="qfq")
                     k_data.to_sql(one_ticker + '_week_' + str(year), engine, if_exists='replace')
-                    if (CHECK_DATABASE):
+                    if (CHECK_DATABASE_PRINT):
                         print("downloaded week code: %s year:%s" % (one_ticker, year))
                 year-=1
-                if (not CHECK_DATABASE):
+                if (not CHECK_DATABASE_PRINT):
                     print("finished code: %s year:%s" %(one_ticker,year))
     except Exception as ex:
         print("Need debug. code: %s year:%s" %(one_ticker,year))
@@ -111,7 +115,7 @@ def download_oneyear(year):
                                        autype="qfq")
                 if (not k_data.empty):
                     k_data.to_sql(one_ticker + '_day_' + str(year), engine, if_exists='replace')
-                    if(CHECK_DATABASE):
+                    if(CHECK_DATABASE_PRINT):
                         print("downloaded day code: %s year:%s" % (one_ticker, year))
             # 周线
             if (not check_already_downloaded(conn, one_ticker, year, "week")):
@@ -119,9 +123,9 @@ def download_oneyear(year):
                                        autype="qfq")
                 if (not k_data.empty):
                     k_data.to_sql(one_ticker + '_week_' + str(year), engine, if_exists='replace')
-                    if(CHECK_DATABASE):
+                    if(CHECK_DATABASE_PRINT):
                         print("downloaded week code: %s year:%s" %(one_ticker,year))
-            if(not CHECK_DATABASE):
+            if(not CHECK_DATABASE_PRINT):
                 print("downloaded code: %s year:%s" % (one_ticker, year))
     except Exception as ex:
         print("Need debug. code: %s year:%s" %(one_ticker,year))
