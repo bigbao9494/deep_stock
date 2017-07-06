@@ -10,7 +10,7 @@ import numpy as np
 import logging
 from common import *
 import pymysql
-import mpi4py.MPI as MPI
+#import mpi4py.MPI as MPI
 import sys
 CHECK_DATABASE_PRINT = False
 pymysql_config = {
@@ -203,7 +203,7 @@ def download_oneyear_stock(year):
     :param year: int or string
     :return:
     '''
-    zxb_tickers = ts.get_sme_classified()
+    codes = ts.get_stock_basics()
     engine = create_engine(
         'mysql+pymysql://' + DATABASS_USER_NAME + ':' + DATABASS_PASSWORD + '@127.0.0.1/'+DATABASS_NAME+'?charset=utf8')
     try:#载入进度
@@ -212,8 +212,8 @@ def download_oneyear_stock(year):
     except:
         i_code=0
     try:
-        for i in range(i_code,zxb_tickers.index.size):
-            one_ticker = zxb_tickers.iloc[i, 0]
+        for i in range(i_code,codes.index.size):
+            one_ticker = codes.index[i]
             # 日线
             if (not check_already_downloaded(conn, one_ticker, year, "day")):
                 k_data = ts.get_k_data(one_ticker, start=str(year) + "-01-01", end=str(year) + "-12-31", ktype="D",

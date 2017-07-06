@@ -1,5 +1,5 @@
 #-*- coding: UTF-8 -*-
-#class price_and_volume():获取指定日期、编号的股票的输入向量。具有以下特点：
+#class price_and_volume_ts():获取指定日期、编号的股票的输入向量。具有以下特点：
 #1. 如果指定日期不是交易日，return  None
 #2. 返回的价格和均线都是指定日期的close价格
 #已知问题：
@@ -121,6 +121,8 @@ class price_and_volume_ts():
             return None,None
         return price,volume
 
+#class price_and_volume_db:
+#返回指定日期的价格。如果指定的日期不是交易日，返回{}或[]。
 class price_and_volume_db():
     def __init__(self,conn,code,date,index=False):
         self.code = code
@@ -132,6 +134,7 @@ class price_and_volume_db():
 
         # 最终输出的结果
         self.price = {}  # np类型
+        self.prices = [] #多天的价格。按照时间由过去到将来的顺序，即序号0是最早的价格，序号-1是date当天的价格。
         self.volume = None  # np类型
         self.nm_price = None
         self.nm_volume = None
@@ -187,26 +190,37 @@ class price_and_volume_db():
             except Exception as ex:
                 self.data_valid = False
                 self.fail_message = "No this data in databass."
+            if(self.data_valid):
+                for rs in result:
+                    tmp_prices = {}
+                    for field in fields:
+                        if(rs[field] is None):
+                            tmp_prices[field] = 0.0
+                        else:
+                            tmp_prices[field]=rs[field]
+                    self.prices.append(tmp_prices)
         else:#当前table数据不够用,分两个table取
             query = "SELECT * from %s" % (self.code + "_" + day_or_week + "_" + str(self.year)) + \
                     " LIMIT %s,%s" % (0, self.current_index+1)
-            self._do_the_query(query)
+            self._do_the_query(query,multi=True)
             tmp1 = self.tmp
             query = "SELECT COUNT(*) from %s" % (self.code + "_" + day_or_week + "_" + str(self.year-1))
             self._do_the_query(query) # 得到表长
-            table_length = self.tmp
+            table_length = self.tmp["COUNT(*)"]
             residue_num = num - self.current_index - 1
             query = "SELECT * from %s" % (self.code + "_" + day_or_week + "_" + str(self.year-1)) + \
                     " LIMIT %s,%s" %(table_length-residue_num,residue_num)
-            self._do_the_query(query)
+            self._do_the_query(query,multi=True)
             tmp2 = self.tmp
+            self.prices = tmp2+tmp1
+        return self.prices
     def get_volume(self,day_or_week):
         pass
     def get_volumes(self,num,day_or_week):
         pass
-    def _do_the_query(self,query):
+    def _do_the_query(self,query,multi=False):
         try:
-            self.tmp = db_execute(query, self.conn)
+            self.tmp = db_execute(query, self.conn, multi=multi)
             if (self.tmp is None):
                 self.data_valid = False
                 self.fail_message = "No this data in databass."
@@ -240,12 +254,12 @@ def test_db_stock_days():
 
     codes = ts.get_stock_basics()  # 下载全部股票代码
     for i in range(codes.index.size):
-        one_dateee = date(2017, month=7, day=1)
+        one_dateee = date(2017, month=1, day=6)
         code = codes.index[i]
-        code = "002001" #just for debug
+        code = "002027" #just for debug
         for j in range(3650):
             one_data = price_and_volume_db(conn,code,one_dateee)
-            x = one_data.get_prices(10,"day")
+            x = one_data.get_prices(20,"day")
             #检查数据合理性
             if(one_data.data_valid):
                 logger.debug('valid: '+str(code)+'_'+date_to_str(one_dateee)+"_"+str(x)) #数据有效

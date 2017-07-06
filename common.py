@@ -10,6 +10,7 @@ def db_execute(query, conn, field=None, multi=False):
     u"""Helper method for executing the given MySQL non-query.
     :param query: MySQL query to be executed.
     :param conn: MySQL connection.
+    :param multi: 取多个数
     """
     cursor = conn.cursor()
 
