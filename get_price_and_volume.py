@@ -14,6 +14,7 @@ import pickle
 import numpy as np
 import logging
 from common import *
+import pymysql
 #输入指定股票的指定日期，得到用来训练的vector（numpy类型）
 class price_and_volume_ts():
     def __init__(self, code,date,index=False):
@@ -125,14 +126,16 @@ class price_and_volume_db():
         self.code = code
         self.test_date = date
         self.buy_date_str = date_to_str(self.test_date)
+        self.year = date.year
         self.index = index#是否是指数,True:指数
+        self.current_index = None #当前日期的价格/成交如果被找到了，记录下来它在数据库中的index。用于取多个数据.
 
         # 最终输出的结果
         self.price = {}  # np类型
         self.volume = None  # np类型
         self.nm_price = None
         self.nm_volume = None
-
+        self.fail_message = None
         # 指示数据有效性的
         self.data_valid = True
         self.no_week_ma = False  # 没有日线的20日均线，说明再往前的日子数据都不用找了.
@@ -149,16 +152,18 @@ class price_and_volume_db():
             result = db_execute(query,self.conn)
             if(result is None):
                 self.data_valid=False
-        except:
+                self.fail_message = "No this data in databass."
+        except Exception as ex:
             self.data_valid=False
         if(self.data_valid):#数据有效
+            self.current_index = result["index"]
             for field in fields:
                 if(result[field] is None):
                     self.price[field] = 0.0
                 else:
                     self.price[field]=result[field]
         return self.price # 成功了，result是真实数；失败了，return {}
-    def get_prices(self,num,day_or_week,fields):
+    def get_prices(self,num,day_or_week,fields=("open","close","high","low")):
         '''
         :param num: int, 取的总天数
         :param day_or_week: str,"day" or "week"
@@ -169,21 +174,63 @@ class price_and_volume_db():
         self.get_price(day_or_week,fields)
         if(not self.data_valid):
             return None
-        #按顺序往前
-        for i in range(num):
+        #从当天往前取num个数
+        #for i in range(num):
+        if(self.current_index>=num-1): #则当前table就有我们需要的所有数据
             query = "SELECT * from %s" % (self.code + "_" + day_or_week + "_" + str(self.year)) + \
-                    " WHERE date = '%s'" % self.buy_date_str
+                    " LIMIT %s,%s" %(self.current_index-num+1,num)
+            try:
+                result = db_execute(query, self.conn,multi=True)
+                if (result is None):
+                    self.data_valid = False
+                    self.fail_message = "No this data in databass."
+            except Exception as ex:
+                self.data_valid = False
+                self.fail_message = "No this data in databass."
+        else:#当前table数据不够用,分两个table取
+            query = "SELECT * from %s" % (self.code + "_" + day_or_week + "_" + str(self.year)) + \
+                    " LIMIT %s,%s" % (0, self.current_index+1)
+            self._do_the_query(query)
+            tmp1 = self.tmp
+            query = "SELECT COUNT(*) from %s" % (self.code + "_" + day_or_week + "_" + str(self.year-1))
+            self._do_the_query(query) # 得到表长
+            table_length = self.tmp
+            residue_num = num - self.current_index - 1
+            query = "SELECT * from %s" % (self.code + "_" + day_or_week + "_" + str(self.year-1)) + \
+                    " LIMIT %s,%s" %(table_length-residue_num,residue_num)
+            self._do_the_query(query)
+            tmp2 = self.tmp
     def get_volume(self,day_or_week):
         pass
     def get_volumes(self,num,day_or_week):
         pass
-def test_price_an():
+    def _do_the_query(self,query):
+        try:
+            self.tmp = db_execute(query, self.conn)
+            if (self.tmp is None):
+                self.data_valid = False
+                self.fail_message = "No this data in databass."
+        except Exception as ex:
+            self.data_valid = False
+            self.fail_message = "No this data in databass."
+
+
+def test_ts():
     one_date = date(2017,month=5,day=2)
     one_ticker = '601600'
     one_data = price_and_volume_ts(one_ticker,one_date)
     x = one_data.get_input_data()
-
-def test_stock():
+def test_db_stock_days():
+    pymysql_config = {
+        'host': '127.0.0.1',
+        'port': 3306,
+        'user': DATABASS_USER_NAME,
+        'password': DATABASS_PASSWORD,
+        'db': DATABASS_NAME,
+        'charset': 'utf8mb4',
+        'cursorclass': pymysql.cursors.DictCursor,
+    }
+    conn = pymysql.connect(**pymysql_config)
     logger = logging.getLogger("mylog")
     formatter = logging.Formatter('%(name)-12s %(asctime)s %(levelname)-8s %(message)s', '%a, %d %b %Y %H:%M:%S',)
     file_handler = logging.FileHandler("./log/test_log.txt",encoding='utf-8')
@@ -191,24 +238,52 @@ def test_stock():
     logger.addHandler(file_handler)
     logger.setLevel(logging.DEBUG)
 
-    zxb_tickers = ts.get_sme_classified()
-    one_dateee = date(2015,month=7,day=30)
-    for i in range(zxb_tickers.index.size):
-        one_ticker = zxb_tickers.iloc[i,0]
+    codes = ts.get_stock_basics()  # 下载全部股票代码
+    for i in range(codes.index.size):
+        one_dateee = date(2017, month=7, day=1)
+        code = codes.index[i]
+        code = "002001" #just for debug
         for j in range(3650):
-            one_data = price_and_volume_ts(one_ticker,one_dateee)
-            x = one_data.get_normalized_price_and_volume()
-
+            one_data = price_and_volume_db(conn,code,one_dateee)
+            x = one_data.get_prices(10,"day")
             #检查数据合理性
             if(one_data.data_valid):
-                logger.debug('valid: '+str(one_ticker)+'_'+date_to_str(one_dateee)+"_"+str(x)) #数据有效
-            elif(one_data.no_week_ma):
-                logger.debug('invalid: no week MA20 '+str(one_ticker)+'_'+date_to_str(one_dateee)+"_"+str(x))
-                break  #数据无效，而且再往前的日子的数据都不会有效了
+                logger.debug('valid: '+str(code)+'_'+date_to_str(one_dateee)+"_"+str(x)) #数据有效
             else:#数据无效
-                logger.debug('invalid: '+str(one_ticker)+'_'+date_to_str(one_dateee)+"_"+str(x))
+                logger.debug('invalid: '+str(code)+'_'+date_to_str(one_dateee)+"_"+str(x))
             one_dateee = one_dateee-timedelta(1)
-def test_index():
+def test_db_stock():
+    pymysql_config = {
+        'host': '127.0.0.1',
+        'port': 3306,
+        'user': DATABASS_USER_NAME,
+        'password': DATABASS_PASSWORD,
+        'db': DATABASS_NAME,
+        'charset': 'utf8mb4',
+        'cursorclass': pymysql.cursors.DictCursor,
+    }
+    conn = pymysql.connect(**pymysql_config)
+    logger = logging.getLogger("mylog")
+    formatter = logging.Formatter('%(name)-12s %(asctime)s %(levelname)-8s %(message)s', '%a, %d %b %Y %H:%M:%S',)
+    file_handler = logging.FileHandler("./log/test_log.txt",encoding='utf-8')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    logger.setLevel(logging.DEBUG)
+
+    codes = ts.get_stock_basics()  # 下载全部股票代码
+    for i in range(codes.index.size):
+        one_dateee = date(2017, month=7, day=1)
+        code = codes.index[i]
+        for j in range(3650):
+            one_data = price_and_volume_db(conn,code,one_dateee)
+            x = one_data.get_price("day")
+            #检查数据合理性
+            if(one_data.data_valid):
+                logger.debug('valid: '+str(code)+'_'+date_to_str(one_dateee)+"_"+str(x)) #数据有效
+            else:#数据无效
+                logger.debug('invalid: '+str(code)+'_'+date_to_str(one_dateee)+"_"+str(x))
+            one_dateee = one_dateee-timedelta(1)
+def test_ts_index():
     logger = logging.getLogger("mylog")
     formatter = logging.Formatter('%(name)-12s %(asctime)s %(levelname)-8s %(message)s', '%a, %d %b %Y %H:%M:%S',)
     file_handler = logging.FileHandler("./log/test_log.txt",encoding='utf-8')
@@ -230,10 +305,36 @@ def test_index():
         else:#数据无效
             logger.debug('invalid: '+str(one_ticker)+'_'+date_to_str(one_dateee)+"_"+str(x))
         one_dateee = one_dateee+timedelta(1)
+def test_ts_stock():
+    logger = logging.getLogger("mylog")
+    formatter = logging.Formatter('%(name)-12s %(asctime)s %(levelname)-8s %(message)s', '%a, %d %b %Y %H:%M:%S', )
+    file_handler = logging.FileHandler("./log/test_log.txt", encoding='utf-8')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    logger.setLevel(logging.DEBUG)
+
+    zxb_tickers = ts.get_sme_classified()
+    one_dateee = date(2015, month=7, day=30)
+    for i in range(zxb_tickers.index.size):
+        one_ticker = zxb_tickers.iloc[i, 0]
+        for j in range(3650):
+            one_data = price_and_volume_ts(one_ticker, one_dateee)
+            x = one_data.get_normalized_price_and_volume()
+
+            # 检查数据合理性
+            if (one_data.data_valid):
+                logger.debug('valid: ' + str(one_ticker) + '_' + date_to_str(one_dateee) + "_" + str(x))  # 数据有效
+            elif (one_data.no_week_ma):
+                logger.debug('invalid: no week MA20 ' + str(one_ticker) + '_' + date_to_str(one_dateee) + "_" + str(x))
+                break  # 数据无效，而且再往前的日子的数据都不会有效了
+            else:  # 数据无效
+                logger.debug('invalid: ' + str(one_ticker) + '_' + date_to_str(one_dateee) + "_" + str(x))
+            one_dateee = one_dateee - timedelta(1)
 if __name__ == '__main__':
     #main()
     #test_stock()
-    test_index()
+    #test_ts_index()
+    test_db_stock_days()
 
 #tips:
 #判断未来的涨幅，应该使用后复权的未来股价与设定日的股价相减。

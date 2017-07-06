@@ -110,9 +110,9 @@ class get_report_db_by_date(get_report_db):
 pymysql_config = {
           'host':'127.0.0.1',
           'port':3306,
-          'user':'root',
-          'password':'m7227510',
-          'db':'tushare',
+          'user':DATABASS_USER_NAME,
+          'password':DATABASS_PASSWORD,
+          'db': DATABASS_NAME,
           'charset':'utf8mb4',
           'cursorclass':pymysql.cursors.DictCursor,
           }

@@ -1,5 +1,11 @@
 #-*- coding: UTF-8 -*-
-def db_execute(query, conn, field=None):
+# Settings:
+DATABASS_USER_NAME = "root"
+DATABASS_PASSWORD = "m7227510"
+DATABASS_NAME = "tushare"
+
+# Common functions
+def db_execute(query, conn, field=None, multi=False):
 
     u"""Helper method for executing the given MySQL non-query.
     :param query: MySQL query to be executed.
@@ -9,7 +15,10 @@ def db_execute(query, conn, field=None):
 
     cursor.execute(query)
     if(field is None):
-        result = cursor.fetchone()
+        if(multi):
+            result = cursor.fetchall()
+        else:
+            result = cursor.fetchone()
     else:
         result = cursor.fetchone()[field]
     cursor.close()

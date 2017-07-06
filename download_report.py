@@ -12,7 +12,7 @@ from sqlalchemy import create_engine
 import pandas as pd
 import numpy as np
 import logging
-
+from common import *
 
 def main():
     year=2004
@@ -35,7 +35,8 @@ def main():
                     pickle.dump(report, f)
             #report =report.drop_duplicates()
             #report.to_excel(r'D:\work_python\DeepData\tushare_download\201701_01_quchong.xlsx')
-            engine = create_engine('mysql+pymysql://root:m7227510@127.0.0.1/tushare?charset=utf8')
+            engine = create_engine(
+                        'mysql+pymysql://' + DATABASS_USER_NAME + ':' + DATABASS_PASSWORD + '@127.0.0.1/'+DATABASS_NAME+'?charset=utf8')
             #存入数据库
             report.to_sql('report_'+str(year)+'_'+str(season),engine,if_exists='replace')
             season=season+1
@@ -60,14 +61,14 @@ def download_1(year,season):
             pickle.dump(report, f)
     #report =report.drop_duplicates()
     #report.to_excel(r'D:\work_python\DeepData\tushare_download\201701_01_quchong.xlsx')
-    engine = create_engine('mysql+pymysql://root:m7227510@127.0.0.1/tushare?charset=utf8')
+    engine = create_engine(
+            'mysql+pymysql://' + DATABASS_USER_NAME + ':' + DATABASS_PASSWORD + '@127.0.0.1/'+DATABASS_NAME+'?charset=utf8')
     #存入数据库
     report.to_sql('report_'+str(year)+'_'+str(season),engine,if_exists='replace')
 def re_download(year,season):
     '''重新下载一个季度的报表，在原来的基础上，补上缺少的部分
     :return:
     '''
-
 
     with open('report_'+str(year)+'_'+str(season)+'.pkl', "rb") as f:
         report = pickle.load(f)
@@ -82,7 +83,8 @@ def re_download(year,season):
         pickle.dump(report, f)
     #report =report.drop_duplicates()
     #report.to_excel(r'D:\work_python\DeepData\tushare_download\201701_01_quchong.xlsx')
-    engine = create_engine('mysql+pymysql://root:m7227510@127.0.0.1/tushare?charset=utf8')
+    engine = create_engine(
+            'mysql+pymysql://' + DATABASS_USER_NAME + ':' + DATABASS_PASSWORD + '@127.0.0.1/'+DATABASS_NAME+'?charset=utf8')
     #存入数据库
     report.to_sql('report_'+str(year)+'_'+str(season),engine,if_exists='replace')
 
