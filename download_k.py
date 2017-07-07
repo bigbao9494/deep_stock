@@ -12,7 +12,7 @@ from common import *
 import pymysql
 #import mpi4py.MPI as MPI
 import sys
-CHECK_DATABASE_PRINT = False
+CHECK_DATABASE_PRINT = True
 pymysql_config = {
         'host': '127.0.0.1',
         'port': 3306,

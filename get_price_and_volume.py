@@ -136,6 +136,7 @@ class price_and_volume_db():
         self.price = {}  # np类型
         self.prices = [] #多天的价格。按照时间由过去到将来的顺序，即序号0是最早的价格，序号-1是date当天的价格。
         self.volume = None  # np类型
+        self.volumes = []
         self.nm_price = None
         self.nm_volume = None
         self.fail_message = None
@@ -151,20 +152,14 @@ class price_and_volume_db():
         '''
         query = "SELECT * from %s" % (self.code + "_"+day_or_week+"_" + str(self.year)) + \
                 " WHERE date = '%s'" % self.buy_date_str
-        try:
-            result = db_execute(query,self.conn)
-            if(result is None):
-                self.data_valid=False
-                self.fail_message = "No this data in databass."
-        except Exception as ex:
-            self.data_valid=False
+        self._do_the_query(query)
         if(self.data_valid):#数据有效
-            self.current_index = result["index"]
+            self.current_index = self.tmp["index"]
             for field in fields:
-                if(result[field] is None):
+                if(self.tmp[field] is None):
                     self.price[field] = 0.0
                 else:
-                    self.price[field]=result[field]
+                    self.price[field]=self.tmp[field]
         return self.price # 成功了，result是真实数；失败了，return {}
     def get_prices(self,num,day_or_week,fields=("open","close","high","low")):
         '''
@@ -182,27 +177,13 @@ class price_and_volume_db():
         if(self.current_index>=num-1): #则当前table就有我们需要的所有数据
             query = "SELECT * from %s" % (self.code + "_" + day_or_week + "_" + str(self.year)) + \
                     " LIMIT %s,%s" %(self.current_index-num+1,num)
-            try:
-                result = db_execute(query, self.conn,multi=True)
-                if (result is None):
-                    self.data_valid = False
-                    self.fail_message = "No this data in databass."
-            except Exception as ex:
-                self.data_valid = False
-                self.fail_message = "No this data in databass."
-            if(self.data_valid):
-                for rs in result:
-                    tmp_prices = {}
-                    for field in fields:
-                        if(rs[field] is None):
-                            tmp_prices[field] = 0.0
-                        else:
-                            tmp_prices[field]=rs[field]
-                    self.prices.append(tmp_prices)
+            self._do_the_query(query,multi=True)
+            self._filter_result_by_fields(fields)
         else:#当前table数据不够用,分两个table取
             query = "SELECT * from %s" % (self.code + "_" + day_or_week + "_" + str(self.year)) + \
                     " LIMIT %s,%s" % (0, self.current_index+1)
             self._do_the_query(query,multi=True)
+            self._filter_result_by_fields(fields)
             tmp1 = self.tmp
             query = "SELECT COUNT(*) from %s" % (self.code + "_" + day_or_week + "_" + str(self.year-1))
             self._do_the_query(query) # 得到表长
@@ -211,23 +192,78 @@ class price_and_volume_db():
             query = "SELECT * from %s" % (self.code + "_" + day_or_week + "_" + str(self.year-1)) + \
                     " LIMIT %s,%s" %(table_length-residue_num,residue_num)
             self._do_the_query(query,multi=True)
+            self._filter_result_by_fields(fields)
             tmp2 = self.tmp
             self.prices = tmp2+tmp1
         return self.prices
     def get_volume(self,day_or_week):
-        pass
+        '''
+        :param day_or_week: string, "day" or "week"
+        :fields: tuple, 列出想提取的数据，例如：("open","close","high","low")。目前仅限于这4项之中。
+        :return: numpy.array []
+        '''
+        query = "SELECT * from %s" % (self.code + "_"+day_or_week+"_" + str(self.year)) + \
+                " WHERE date = '%s'" % self.buy_date_str
+        self._do_the_query(query,field="volume")
+        if(self.data_valid):#数据有效
+            self.current_index = result["index"]
+            if(result["volume"] is None):
+                self.volume = 0.0
+            else:
+                self.volume = result["volume"]
+        return self.volume # 成功了，return真实数；失败了，return None
     def get_volumes(self,num,day_or_week):
-        pass
-    def _do_the_query(self,query,multi=False):
+        #检查当天价格是否存在，如果不存在，结束返回
+        self.get_volume(day_or_week)
+        if(not self.data_valid):
+            return None
+        #从当天往前取num个数
+        if(self.current_index>=num-1): #则当前table就有我们需要的所有数据
+            query = "SELECT * from %s" % (self.code + "_" + day_or_week + "_" + str(self.year)) + \
+                    " LIMIT %s,%s" %(self.current_index-num+1,num)
+            self._do_the_query(query,multi=True)
+            self._filter_result_by_fields(("volume"))
+        else:#当前table数据不够用,分两个table取
+            query = "SELECT * from %s" % (self.code + "_" + day_or_week + "_" + str(self.year)) + \
+                    " LIMIT %s,%s" % (0, self.current_index+1)
+            self._do_the_query(query,multi=True)
+            self._filter_result_by_fields(("volume"))
+            tmp1 = self.tmp
+            query = "SELECT COUNT(*) from %s" % (self.code + "_" + day_or_week + "_" + str(self.year-1))
+            self._do_the_query(query) # 得到表长
+            table_length = self.tmp["COUNT(*)"]
+            residue_num = num - self.current_index - 1
+            query = "SELECT * from %s" % (self.code + "_" + day_or_week + "_" + str(self.year-1)) + \
+                    " LIMIT %s,%s" %(table_length-residue_num,residue_num)
+            self._do_the_query(query,multi=True)
+            self._filter_result_by_fields(("volume"))
+            tmp2 = self.tmp
+            self.volumes = tmp2+tmp1
+        return self.volumes
+    def _do_the_query(self,query,field=None, multi=False):
+        '''
+        field: string, only one field can be used. Ex:"open", or "close"
+        '''
         try:
-            self.tmp = db_execute(query, self.conn, multi=multi)
+            self.tmp = db_execute(query, self.conn,field=field, multi=multi)
             if (self.tmp is None):
                 self.data_valid = False
                 self.fail_message = "No this data in databass."
         except Exception as ex:
             self.data_valid = False
             self.fail_message = "No this data in databass."
-
+    def _filter_result_by_fields(self,fields):
+        filter_tmp = []
+        if(self.data_valid):
+            for rs in self.tmp:
+                tmp_one = {}
+                for field in fields:
+                    if(rs[field] is None):
+                        tmp_one[field] = 0.0
+                    else:
+                        tmp_one[field]=rs[field]
+                filter_tmp.append(tmp_one)
+        self.tmp = filter_tmp
 
 def test_ts():
     one_date = date(2017,month=5,day=2)
@@ -256,10 +292,10 @@ def test_db_stock_days():
     for i in range(codes.index.size):
         one_dateee = date(2017, month=1, day=6)
         code = codes.index[i]
-        code = "002027" #just for debug
+        code = "002001" #just for debug
         for j in range(3650):
             one_data = price_and_volume_db(conn,code,one_dateee)
-            x = one_data.get_prices(20,"day")
+            x = one_data.get_volumes(20,"day")
             #检查数据合理性
             if(one_data.data_valid):
                 logger.debug('valid: '+str(code)+'_'+date_to_str(one_dateee)+"_"+str(x)) #数据有效
@@ -348,7 +384,8 @@ if __name__ == '__main__':
     #main()
     #test_stock()
     #test_ts_index()
-    test_db_stock_days()
+    #test_db_stock_days()
+    test_db_stock()
 
 #tips:
 #判断未来的涨幅，应该使用后复权的未来股价与设定日的股价相减。
